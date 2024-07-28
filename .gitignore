@@ -51,3 +51,9 @@ docs/_build/
 
 # DB
 *.db
+
+# Video Service
+*.m4s
+*.mp4
+*.jpg
+*.mpd

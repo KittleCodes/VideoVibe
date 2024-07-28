@@ -1,10 +1,11 @@
-from flask import Flask, request
+from flask import Flask, request, Response
 import requests
 
 app = Flask(__name__)
 
 AUTH_SERVICE_URL = 'http://localhost:5000'
 USER_SERVICE_URL = 'http://localhost:5001'
+VIDEO_SERVICE_URL = 'http://localhost:5002'
 
 def get_request_data():
     """Get the request data."""
