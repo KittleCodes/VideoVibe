@@ -7,6 +7,7 @@ from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from models import db, Video
 from werkzeug.utils import secure_filename
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///videos.db'
@@ -26,6 +27,13 @@ def allowed_file(filename):
     """Check if the file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def run_ffmpeg_command(command, cwd):
+    """Run an FFmpeg command in a specific directory."""
+    try:
+        subprocess.run(command, cwd=cwd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"An error occurred while processing the video: {e}")
+
 def process_video(file_path, filename):
     """Convert video to multi-bitrate in MPEG-DASH format."""
     file_path = os.path.abspath(file_path)  # Fullname of the file
@@ -39,35 +47,42 @@ def process_video(file_path, filename):
 
         try:
             # Extract audio
-            subprocess.run([
+            audio_command = [
                 'ffmpeg', '-y', '-i', file_path, '-c:a', 'aac', '-b:a', '192k', '-vn', f"{base_name}_audio.m4a"
-            ], cwd=dash_output_path, check=True)
+            ]
+            run_ffmpeg_command(audio_command, dash_output_path)
 
-            # Create video streams
-            subprocess.run([
-                'ffmpeg', '-y', '-i', file_path, '-preset', 'slow', '-tune', 'film', '-vsync', 'passthrough', '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '22', '-maxrate', '5000k', '-bufsize', '12000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_5000.mp4"
-            ], cwd=dash_output_path, check=True)
+            # Define video commands for different resolutions
+            video_commands = [
+                [
+                    'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
+                    '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '22',
+                    '-maxrate', '8000k', '-bufsize', '16000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_original.mp4"
+                ],
+                [
+                    'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
+                    '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '23',
+                    '-maxrate', '5000k', '-bufsize', '10000k', '-pix_fmt', 'yuv420p', '-vf', 'scale=-2:720', '-f', 'mp4', f"{base_name}_720p.mp4"
+                ],
+                [
+                    'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
+                    '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '23',
+                    '-maxrate', '2500k', '-bufsize', '5000k', '-pix_fmt', 'yuv420p', '-vf', 'scale=-2:480', '-f', 'mp4', f"{base_name}_480p.mp4"
+                ]
+            ]
 
-            subprocess.run([
-                'ffmpeg', '-y', '-i', file_path, '-preset', 'slow', '-tune', 'film', '-vsync', 'passthrough', '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '23', '-maxrate', '3000k', '-bufsize', '6000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_3000.mp4"
-            ], cwd=dash_output_path, check=True)
-
-            subprocess.run([
-                'ffmpeg', '-y', '-i', file_path, '-preset', 'slow', '-tune', 'film', '-vsync', 'passthrough', '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '23', '-maxrate', '1500k', '-bufsize', '3000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_1500.mp4"
-            ], cwd=dash_output_path, check=True)
-
-            subprocess.run([
-                'ffmpeg', '-y', '-i', file_path, '-preset', 'slow', '-tune', 'film', '-vsync', 'passthrough', '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '23', '-maxrate', '800k', '-bufsize', '2000k', '-pix_fmt', 'yuv420p', '-vf', 'scale=-2:720', '-f', 'mp4', f"{base_name}_800.mp4"
-            ], cwd=dash_output_path, check=True)
-
-            subprocess.run([
-                'ffmpeg', '-y', '-i', file_path, '-preset', 'slow', '-tune', 'film', '-vsync', 'passthrough', '-an', '-c:v', 'libx264', '-x264opts', 'keyint=25:min-keyint=25:no-scenecut', '-crf', '23', '-maxrate', '400k', '-bufsize', '1000k', '-pix_fmt', 'yuv420p', '-vf', 'scale=-2:540', '-f', 'mp4', f"{base_name}_400.mp4"
-            ], cwd=dash_output_path, check=True)
+            # Process videos in parallel
+            with ThreadPoolExecutor() as executor:
+                for command in video_commands:
+                    executor.submit(run_ffmpeg_command, command, dash_output_path)
 
             # Static file for iOS and old browsers
-            subprocess.run([
-                'ffmpeg', '-y', '-i', file_path, '-preset', 'slow', '-tune', 'film', '-movflags', '+faststart', '-vsync', 'passthrough', '-c:a', 'aac', '-b:a', '160k', '-c:v', 'libx264', '-crf', '23', '-maxrate', '2000k', '-bufsize', '4000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}.mp4"
-            ], cwd=dash_output_path, check=True)
+            static_command = [
+                'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-movflags', '+faststart',
+                '-vsync', 'passthrough', '-c:a', 'aac', '-b:a', '160k', '-c:v', 'libx264', '-crf', '23',
+                '-maxrate', '2000k', '-bufsize', '4000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}.mp4"
+            ]
+            run_ffmpeg_command(static_command, dash_output_path)
 
             # Clean up logs
             for log_file in os.listdir(dash_output_path):
@@ -76,29 +91,30 @@ def process_video(file_path, filename):
 
             # Generate DASH manifest
             if os.path.exists(os.path.join(dash_output_path, f"{base_name}_audio.m4a")):
-                subprocess.run([
-                    'MP4Box', '-dash', '2000', '-rap', '-frag-rap', '-bs-switching', 'no', '-profile', 'dashavc264:live', f"{base_name}_5000.mp4", f"{base_name}_3000.mp4", f"{base_name}_1500.mp4", f"{base_name}_800.mp4", f"{base_name}_400.mp4", f"{base_name}_audio.m4a", '-out', f"{base_name}.mpd"
-                ], cwd=dash_output_path, check=True)
-                os.remove(os.path.join(dash_output_path, f"{base_name}_5000.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_3000.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_1500.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_800.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_400.mp4"))
+                dash_command = [
+                    'MP4Box', '-dash', '2000', '-rap', '-frag-rap', '-bs-switching', 'no', '-profile', 'dashavc264:live',
+                    f"{base_name}_original.mp4", f"{base_name}_720p.mp4", f"{base_name}_480p.mp4", f"{base_name}_audio.m4a", '-out', f"{base_name}.mpd"
+                ]
+                run_ffmpeg_command(dash_command, dash_output_path)
+                os.remove(os.path.join(dash_output_path, f"{base_name}_original.mp4"))
+                os.remove(os.path.join(dash_output_path, f"{base_name}_720p.mp4"))
+                os.remove(os.path.join(dash_output_path, f"{base_name}_480p.mp4"))
                 os.remove(os.path.join(dash_output_path, f"{base_name}_audio.m4a"))
             else:
-                subprocess.run([
-                    'MP4Box', '-dash', '2000', '-rap', '-frag-rap', '-bs-switching', 'no', '-profile', 'dashavc264:live', f"{base_name}_5000.mp4", f"{base_name}_3000.mp4", f"{base_name}_1500.mp4", f"{base_name}_800.mp4", f"{base_name}_400.mp4", '-out', f"{base_name}.mpd"
-                ], cwd=dash_output_path, check=True)
-                os.remove(os.path.join(dash_output_path, f"{base_name}_5000.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_3000.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_1500.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_800.mp4"))
-                os.remove(os.path.join(dash_output_path, f"{base_name}_400.mp4"))
+                dash_command = [
+                    'MP4Box', '-dash', '2000', '-rap', '-frag-rap', '-bs-switching', 'no', '-profile', 'dashavc264:live',
+                    f"{base_name}_original.mp4", f"{base_name}_720p.mp4", f"{base_name}_480p.mp4", '-out', f"{base_name}.mpd"
+                ]
+                run_ffmpeg_command(dash_command, dash_output_path)
+                os.remove(os.path.join(dash_output_path, f"{base_name}_original.mp4"))
+                os.remove(os.path.join(dash_output_path, f"{base_name}_720p.mp4"))
+                os.remove(os.path.join(dash_output_path, f"{base_name}_480p.mp4"))
 
             # Create a jpg for poster
-            subprocess.run([
+            poster_command = [
                 'ffmpeg', '-i', file_path, '-ss', '00:00:00', '-vframes', '1', '-qscale:v', '10', '-n', '-f', 'image2', f"{base_name}.jpg"
-            ], cwd=dash_output_path, check=True)
+            ]
+            run_ffmpeg_command(poster_command, dash_output_path)
 
         except subprocess.CalledProcessError as e:
             print(f"An error occurred while processing the video: {e}")
