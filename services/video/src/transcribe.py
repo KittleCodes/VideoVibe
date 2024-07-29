@@ -1,9 +1,10 @@
 import os
 import wave
+import re
 import contextlib
 import speech_recognition as sr
 from moviepy.editor import AudioFileClip
-from nltk.tokenize import sent_tokenize
+from nltk.tokenize import sent_tokenize, word_tokenize
 from collections import Counter
 import nltk
 
@@ -14,18 +15,40 @@ def format_time_vtt(seconds):
     hours, remainder = divmod(seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
     milliseconds = int((seconds - int(seconds)) * 1000)
-
     return f"{int(hours):02}:{int(minutes):02}:{int(seconds):02}.{milliseconds:03}"
 
-
-def chunk_text_into_sentences(text):
-    return sent_tokenize(text)
-
 def extract_keywords(text):
-    words = nltk.word_tokenize(text.lower())
+    words = word_tokenize(text.lower())
     stopwords = set(nltk.corpus.stopwords.words('english'))
     filtered_words = [word for word in words if word.isalnum() and word not in stopwords]
     return Counter(filtered_words).most_common(10)
+
+def find_sentence_times(sentences, words):
+    sentence_times = []
+    word_index = 0
+
+    pattern = re.compile(r"\b\w+'\w*|\w+\b")
+
+    for sentence in sentences:
+        tokens = pattern.findall(sentence)
+        print(tokens)
+        sentence_word_count = len(tokens)
+        
+        if word_index + sentence_word_count > len(words):
+            break
+
+        start_time = words[word_index]["start"]
+        end_time = words[word_index + sentence_word_count - 1]["end"]
+
+        sentence_times.append({
+            "sentence": sentence,
+            "start": start_time,
+            "end": end_time
+        })
+
+        word_index += sentence_word_count
+
+    return sentence_times
 
 def transcribe_and_save(video_file_path):
     base_name = os.path.splitext(os.path.basename(video_file_path))[0]
@@ -41,7 +64,6 @@ def transcribe_and_save(video_file_path):
     with contextlib.closing(wave.open(transcribed_audio_file_name, 'r')) as f:
         frames = f.getnframes()
         rate = f.getframerate()
-        duration = frames / float(rate)
 
     r = sr.Recognizer()
 
@@ -55,17 +77,23 @@ def transcribe_and_save(video_file_path):
 
         try:
             text = r.recognize_whisper(audio, word_timestamps=True, show_dict=True)
-
+            words = []
             for idx, segment in enumerate(text['segments']):
-                start_time = segment['start']
-                end_time = segment['end']
-
-                start_time_vtt = format_time_vtt(start_time)
-                end_time_vtt = format_time_vtt(end_time)
+                for word in segment['words']:
+                    words.append(word)
+                    
+            compiled = ''.join([word["word"] for word in words])
+            sentences = sent_tokenize(compiled)
+            
+            sentence_times = find_sentence_times(sentences, words)
+            
+            for idx, st in enumerate(sentence_times):
+                start_time_vtt = format_time_vtt(st['start'])
+                end_time_vtt = format_time_vtt(st['end'])
 
                 vtt_file.write(f"{idx + 1}\n")
                 vtt_file.write(f"{start_time_vtt} --> {end_time_vtt}\n")
-                vtt_file.write(f"{segment['text']}\n\n")
+                vtt_file.write(f"{st['sentence']}\n\n")
 
             keywords = extract_keywords(text['text'])
             for keyword, count in keywords:

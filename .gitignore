@@ -60,5 +60,6 @@ docs/_build/
 *.mpd
 *.vtt
 *.m4a
+*.wav
 
 /services/video/src/model
