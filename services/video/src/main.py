@@ -173,7 +173,11 @@ def update_video(token, user_id):
     """Update a video by token."""
     data = request.get_json()
     video = Video.query.get(token)
+
     if video:
+        if video.user_id != user_id:
+            return jsonify(message='Unauthorized'), 403
+
         video.title = data.get('title', video.title)
         video.description = data.get('description', video.description)
         db.session.commit()
@@ -186,7 +190,11 @@ def update_video(token, user_id):
 def delete_video(token, user_id):
     """Delete a video by token."""
     video = Video.query.get(token)
+
     if video:
+        if video.user_id != user_id:
+            return jsonify(message='Unauthorized'), 403
+
         db.session.delete(video)
         db.session.commit()
         return jsonify(message='Video deleted'), 200
