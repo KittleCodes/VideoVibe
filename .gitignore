@@ -58,3 +58,7 @@ docs/_build/
 *.mp4
 *.jpg
 *.mpd
+*.vtt
+*.m4a
+
+/services/video/src/model

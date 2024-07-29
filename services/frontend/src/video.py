@@ -35,8 +35,13 @@ def video(id):
 </head>
 <body>
     <h1>DASH Player</h1>
-    <video id="videoPlayer" data-dashjs-player width="1080" height="720" loop="true" autoplay="true" controls>
-        
+    <video id="videoPlayer" data-dashjs-player width="1080" height="720" loop="true" autoplay="true" controls crossorigin="anonymous">
+        <track
+    label="English"
+    kind="subtitles"
+    srclang="en"
+    src="http://localhost:5002/dash/{id}/{id}.vtt"
+    default />
     </video>
     <script>
         var url = "http://localhost:5002/dash/{id}/{id}.mpd"; // Path to your DASH manifest file

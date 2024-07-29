@@ -125,7 +125,6 @@ def subscribe_user(user_id):
     subscriptions_count = Subscription.query.filter_by(subscriber_id=user_id).count()
     return jsonify({"message": "Subscription added", "subscriptions": subscriptions_count})
 
-
 @app.route('/unsubscribe', methods=['POST'])
 @require_auth
 def unsubscribe_user(user_id):
