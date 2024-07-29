@@ -31,3 +31,9 @@ class View(db.Model):
     video_id = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.String(100), nullable=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Subscription(db.Model):
+    """Model for the subscriptions table."""
+    id = db.Column(db.Integer, primary_key=True)
+    subscriber_id = db.Column(db.Integer, nullable=False)
+    subscribed_to_id = db.Column(db.Integer, nullable=False)

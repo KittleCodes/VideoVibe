@@ -2,7 +2,7 @@ import os
 import requests
 from functools import wraps
 from flask import Flask, request, jsonify, Response
-from models import db, Like, Dislike, Comment, View
+from models import db, Like, Dislike, Comment, View, Subscription
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///engagement.db'
@@ -105,6 +105,42 @@ def view_video(user_id):
 
     return jsonify({"message": "Video viewed", "views": View.query.filter_by(video_id=video_id).count()})
 
+@app.route('/subscribe', methods=['POST'])
+@require_auth
+def subscribe_user(user_id):
+    """Subscribe to a user."""
+    subscribe_to_id = request.json.get('subscribe_to_id')
+
+    if user_id == subscribe_to_id:
+        return jsonify({"message": "You cannot subscribe to yourself"}), 400
+
+    existing_subscription = Subscription.query.filter_by(subscriber_id=user_id, subscribed_to_id=subscribe_to_id).first()
+    if existing_subscription:
+        return jsonify({"message": "You are already subscribed to this user"}), 400
+
+    subscription = Subscription(subscriber_id=user_id, subscribed_to_id=subscribe_to_id)
+    db.session.add(subscription)
+    db.session.commit()
+
+    subscriptions_count = Subscription.query.filter_by(subscriber_id=user_id).count()
+    return jsonify({"message": "Subscription added", "subscriptions": subscriptions_count})
+
+
+@app.route('/unsubscribe', methods=['POST'])
+@require_auth
+def unsubscribe_user(user_id):
+    """Unsubscribe from a user."""
+    unsubscribe_from_id = request.json.get('unsubscribe_from_id')
+
+    subscription = Subscription.query.filter_by(subscriber_id=user_id, subscribed_to_id=unsubscribe_from_id).first()
+    if not subscription:
+        return jsonify({"message": "You are not subscribed to this user"}), 400
+
+    db.session.delete(subscription)
+    db.session.commit()
+
+    subscriptions_count = Subscription.query.filter_by(subscriber_id=user_id).count()
+    return jsonify({"message": "Subscription removed", "subscriptions": subscriptions_count})
 
 if __name__ == '__main__':
     with app.app_context():
