@@ -114,16 +114,16 @@ def require_auth(func):
     @wraps(func)
     def check_token(*args, **kwargs):
         if 'Authorization' not in request.headers:
-            return Response("Access denied")
+            return Response("Access denied", status=401)
 
         try:
             response = requests.get(f'{AUTH_SERVICE_URL}/verify', headers={'Authorization': request.headers['Authorization']}, timeout=10).json()
         except requests.exceptions.RequestException as e:
             print(f"An error occurred while verifying the token: {e}")
-            return Response("Access denied")
+            return Response("Access denied", status=401)
         
         if 'user_id' not in response:
-            return Response("Access denied")
+            return Response("Access denied", status=401)
 
         kwargs['user_id'] = response['user_id']
 

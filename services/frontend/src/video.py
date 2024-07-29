@@ -35,14 +35,15 @@ def video(id):
 </head>
 <body>
     <h1>DASH Player</h1>
-    <video data-dashjs-player width="1080" height="720" loop="true" autoplay="true" controls>
-        <source src="http://localhost:5002/dash/{id}/{id}.mpd" type="application/dash+xml">
+    <video id="videoPlayer" data-dashjs-player width="1080" height="720" loop="true" autoplay="true" controls>
+        
     </video>
     <script>
         var url = "http://localhost:5002/dash/{id}/{id}.mpd"; // Path to your DASH manifest file
         var video = document.querySelector("#videoPlayer");
         var player = dashjs.MediaPlayer().create();
         player.initialize(video, url, true);
+        console.log(player.getBitrateInfoListFor("video"));
     </script>
 </body>
 </html>
