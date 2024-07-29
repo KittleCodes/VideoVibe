@@ -51,6 +51,7 @@ docs/_build/
 
 # DB
 *.db
+*.db-journal
 
 # Video Service
 *.m4s
