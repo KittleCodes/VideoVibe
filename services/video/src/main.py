@@ -20,7 +20,9 @@ db.init_app(app)
 
 CORS(app, resources={r"/*": {"origins": "http://localhost"}})
 
-AUTH_SERVICE_URL = 'http://localhost:5000/'
+AUTH_SERVICE_URL = 'http://localhost:5000'
+RECOMMENDATION_SERVICE_URL = 'http://localhost:5005'
+SERVICE_TOKEN = 'my_secure_service_token' # Change this!
 ID_LENGTH = 12
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi'}
 
@@ -68,8 +70,8 @@ def create_video(user_id):
 
         keywords = transcribe_and_save(file_path)
         process_video(file_path, filename)
-        
-        response = requests.post("http://127.0.0.1:5005/add_keywords", json={"video_id": token, "keywords": keywords}, headers={"Content-Type": "application/json", "X-Service-Token": "my_secure_service_token"})
+
+        response = requests.post(f"{RECOMMENDATION_SERVICE_URL}/add_keywords", json={"video_id": token, "keywords": keywords}, headers={"Content-Type": "application/json", "X-Service-Token": SERVICE_TOKEN})
 
         new_video = Video(title=filename, description=filename, token=token, author_id=user_id)
         db.session.add(new_video)
@@ -127,11 +129,6 @@ def delete_video(token, user_id):
 def serve_upload(filename):
     """Serve video files from the uploads folder."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@app.route('/transcriptions/<filename>')
-def serve_transcriptions(filename):
-    """Serve video files from the uploads folder."""
-    return send_from_directory(app.config['TRANSCRIPTIONS_FOLDER'], filename)
 
 @app.route('/dash/<path:filename>')
 def serve_dash(filename):
