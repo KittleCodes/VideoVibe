@@ -68,10 +68,23 @@ def create_video(user_id):
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
 
-        keywords = transcribe_and_save(file_path)
-        process_video(file_path, filename)
+        try:
+            keywords = transcribe_and_save(file_path)
+        except Exception as error:
+            print(f"An error occurred while transcribing the video: {error}")
+            return jsonify({'error': 'An error occurred while transcribing the video'}), 500
 
-        response = requests.post(f"{RECOMMENDATION_SERVICE_URL}/add_keywords", json={"video_id": token, "keywords": keywords}, headers={"Content-Type": "application/json", "X-Service-Token": SERVICE_TOKEN})
+        try:
+            process_video(file_path, filename)
+        except Exception as error:
+            print(f"An error occurred while processing the video: {error}")
+            return jsonify({'error': 'An error occurred while processing the video'}), 500
+
+        try:
+            requests.post(f"{RECOMMENDATION_SERVICE_URL}/add_keywords", json={"video_id": token, "keywords": keywords}, headers={"Content-Type": "application/json", "X-Service-Token": SERVICE_TOKEN}, timeout=10)
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred while sending keywords to the recommendation service: {e}")
+            return jsonify({'error': 'An error occurred while sending keywords to the recommendation service'}), 500
 
         new_video = Video(title=filename, description=filename, token=token, author_id=user_id)
         db.session.add(new_video)
