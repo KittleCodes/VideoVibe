@@ -14,14 +14,13 @@ app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///videos.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = 'uploads/'
 app.config['DASH_FOLDER'] = 'dash/'
-app.config['TRANSCRIPTIONS_FOLDER'] = 'transcriptions/'
 
 db.init_app(app)
 
-CORS(app, resources={r"/*": {"origins": "http://localhost"}})
+CORS(app, resources={r"/*": {"origins": "http://127.0.0.1"}})
 
-AUTH_SERVICE_URL = 'http://localhost:5000'
-RECOMMENDATION_SERVICE_URL = 'http://localhost:5005'
+AUTH_SERVICE_URL = 'http://127.0.0.1:5000'
+RECOMMENDATION_SERVICE_URL = 'http://127.0.0.1:5005'
 SERVICE_TOKEN = 'my_secure_service_token' # Change this!
 ID_LENGTH = 12
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi'}
@@ -95,12 +94,11 @@ def create_video(user_id):
         return jsonify({'error': 'Invalid file format'}), 400
 
 @app.route('/videos/<token>', methods=['GET'])
-@require_auth
-def get_video(token, user_id):
+def get_video(token):
     """Get a video by token."""
     video = Video.query.get(token)
     if video:
-        return jsonify(token=video.token, title=video.title, description=video.description), 200
+        return jsonify(token=video.token, title=video.title, description=video.description, author_id=video.author_id), 200
     else:
         return jsonify(message='Video not found'), 404
 
