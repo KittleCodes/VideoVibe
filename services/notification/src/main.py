@@ -9,7 +9,7 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-AUTH_SERVICE_URL = 'http://localhost:5000/'
+AUTH_SERVICE_URL = 'http://127.0.0.1:5000/'
 SERVICE_TOKEN = 'my_secure_service_token' # Change this!
 
 def require_auth(func):
