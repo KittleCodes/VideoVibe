@@ -1,8 +1,10 @@
 import os
+import json
 import requests
 from functools import wraps
 from flask import Flask, request, jsonify, Response
 from models import db, Like, Dislike, Comment, View, Subscription
+from sqlalchemy import func
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///engagement.db'
@@ -10,7 +12,8 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
 
-AUTH_SERVICE_URL = 'http://localhost:5000/'
+USER_SERVICE_URL = 'http://127.0.0.1:5001/'
+AUTH_SERVICE_URL = 'http://127.0.0.1:5000/'
 
 def require_auth(func):
     """Checks if the request has a valid access token."""
@@ -88,6 +91,41 @@ def comment_video(user_id):
     db.session.commit()
 
     return jsonify({"message": "Comment added", "comments": [c.comment_text for c in Comment.query.filter_by(video_id=video_id).all()]})
+
+@app.route('/comments', methods=['GET'])
+def get_comments():
+    """Get paginated comments for a video using timestamp-based cursor pagination."""
+    video_id = request.args.get('video_id')
+    last_timestamp = request.args.get('last_timestamp')
+    print(last_timestamp)
+    per_page = 20
+
+    query = Comment.query.filter_by(video_id=video_id).order_by(Comment.timestamp)
+    count = db.session.query(func.count(Comment.id)).filter(Comment.video_id == video_id).scalar()
+    
+    if last_timestamp != None:
+        query = query.filter(Comment.timestamp > last_timestamp)
+
+    comments = query.limit(per_page).all()
+    
+    user_ids = [comment.user_id for comment in comments]
+    response = requests.get(f"{USER_SERVICE_URL}/findusername", timeout=5, params={"id": user_ids})
+
+    usernames = {user['id']: user['username'] for user in response.json()} if response.status_code == 200 else {}
+
+    newComments = []
+
+    for comment in comments:
+        comment_dict = comment.to_dict()
+        comment_dict['username'] = usernames.get(int(comment.user_id), "Unknown")
+        newComments.append(comment_dict)
+
+    return jsonify({
+        "comments": newComments,
+        "commentCount": count,
+        "last_timestamp": comments[-1].timestamp.isoformat() if comments else None,
+        "has_more": len(comments) == per_page
+    })
 
 @app.route('/view', methods=['POST'])
 @require_auth
