@@ -1,6 +1,5 @@
 import os
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
 
 def run_ffmpeg_command(command, output_path):
     """Run an FFmpeg command and return the output."""
@@ -22,56 +21,35 @@ def process_video(file_path, filename):
         print(f"Converting \"{base_name}\" to multi-bitrate video in MPEG-DASH")
 
         try:
-            # Extract audio streams
-            audio_command_template = [
-                'ffmpeg', '-y', '-i', file_path, '-map', '0:a:{stream_index}', 
-                '-c:a', 'aac', '-b:a', '192k', '-vn', '{output_file}'
-            ]
-            audio_streams = []
-            for i in range(10):  # Handle up to 10 audio streams
-                output_file = f"{base_name}_audio_{i}.m4a"
-                audio_command = [x.format(stream_index=i, output_file=output_file) for x in audio_command_template]
-                try:
-                    run_ffmpeg_command(audio_command, dash_output_path)
-                    if os.path.exists(os.path.join(dash_output_path, output_file)):
-                        audio_streams.append(output_file)
-                except RuntimeError as e:
-                    if "Stream map '0:a:" in str(e):
-                        break  # No more audio streams available
-                    else:
-                        raise
-
-            # Define video commands for different resolutions
-            video_commands = [
-                [
-                    'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
-                    '-an', '-c:v', 'libx264', '-x264opts', 'keyint=48:min-keyint=48:no-scenecut', '-crf', '22',
-                    '-maxrate', '5000k', '-bufsize', '10000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_original.mp4"
-                ],
-                [
-                    'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
-                    '-an', '-c:v', 'libx264', '-x264opts', 'keyint=48:min-keyint=48:no-scenecut', '-crf', '23',
-                    '-maxrate', '3000k', '-bufsize', '6000k', '-pix_fmt', 'yuv420p', '-vf', 'scale=-2:720', '-f', 'mp4', f"{base_name}_720p.mp4"
-                ],
-                [
-                    'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
-                    '-an', '-c:v', 'libx264', '-x264opts', 'keyint=48:min-keyint=48:no-scenecut', '-crf', '23',
-                    '-maxrate', '1500k', '-bufsize', '3000k', '-pix_fmt', 'yuv420p', '-vf', 'scale=-2:480', '-f', 'mp4', f"{base_name}_480p.mp4"
-                ]
+            # FFmpeg command to extract multiple outputs (video at different resolutions + audio)
+            ffmpeg_command = [
+                'ffmpeg', '-y', '-i', file_path, '-preset', 'medium', '-tune', 'film', '-vsync', 'passthrough',
+                # Audio stream extraction
+                '-map', '0:a', '-c:a', 'aac', '-b:a', '192k', '-vn', '-f', 'mp4', f"{base_name}_audio.m4a",
+                # Original resolution video stream
+                '-map', '0:v', '-c:v', 'libx264', '-x264opts', 'keyint=48:min-keyint=48:no-scenecut', '-crf', '22',
+                '-maxrate', '5000k', '-bufsize', '10000k', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_original.mp4",
+                # 720p video stream
+                '-map', '0:v', '-c:v', 'libx264', '-x264opts', 'keyint=48:min-keyint=48:no-scenecut', '-crf', '23',
+                '-maxrate', '3000k', '-bufsize', '6000k', '-vf', 'scale=-2:720', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_720p.mp4",
+                # 480p video stream
+                '-map', '0:v', '-c:v', 'libx264', '-x264opts', 'keyint=48:min-keyint=48:no-scenecut', '-crf', '23',
+                '-maxrate', '1500k', '-bufsize', '3000k', '-vf', 'scale=-2:480', '-pix_fmt', 'yuv420p', '-f', 'mp4', f"{base_name}_480p.mp4"
             ]
 
-            with ThreadPoolExecutor() as executor:
-                executor.map(lambda cmd: run_ffmpeg_command(cmd, dash_output_path), video_commands)
+            # Run FFmpeg command to process both video and audio in parallel
+            run_ffmpeg_command(ffmpeg_command, dash_output_path)
 
             # Generate DASH manifest
             dash_command = [
                 'MP4Box', '-dash', '4000', '-rap', '-frag-rap', '-bs-switching', 'no', '-profile', 'dashavc264:live',
-                f"{base_name}_original.mp4", f"{base_name}_720p.mp4", f"{base_name}_480p.mp4"
-            ] + audio_streams + ['-out', f"{base_name}.mpd"]
+                f"{base_name}_original.mp4", f"{base_name}_720p.mp4", f"{base_name}_480p.mp4", f"{base_name}_audio.m4a",
+                '-out', f"{base_name}.mpd"
+            ]
             run_ffmpeg_command(dash_command, dash_output_path)
 
             # Clean up individual segments
-            for file in [f"{base_name}_original.mp4", f"{base_name}_720p.mp4", f"{base_name}_480p.mp4"] + audio_streams:
+            for file in [f"{base_name}_original.mp4", f"{base_name}_720p.mp4", f"{base_name}_480p.mp4", f"{base_name}_audio.m4a"]:
                 os.remove(os.path.join(dash_output_path, file))
 
             # Create a jpg for poster
