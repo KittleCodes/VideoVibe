@@ -13,6 +13,7 @@ USER_SERVICE_URL = 'http://127.0.0.1:5001'
 VIDEO_SERVICE_URL = 'http://127.0.0.1:5002'
 ENGAGEMENT_SERVICE_URL = 'http://127.0.0.1:5003'
 RECOMMENDATION_SERVICE_URL = 'http://127.0.0.1:5005'
+CHANNEL_SERVICE_URL = 'http://127.0.0.1:5006'
 
 async def fetch(session, url, method, headers, data, params):
     async with session.request(method, url, headers=headers, json=data, params=params) as resp:
@@ -51,7 +52,8 @@ async def proxy(service, path):
         'user': USER_SERVICE_URL,
         'video': VIDEO_SERVICE_URL,
         'engagement': ENGAGEMENT_SERVICE_URL,
-        'recommendation': RECOMMENDATION_SERVICE_URL
+        'recommendation': RECOMMENDATION_SERVICE_URL,
+        'channel': CHANNEL_SERVICE_URL
     }
 
     if service not in services:
