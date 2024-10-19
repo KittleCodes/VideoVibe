@@ -1,65 +1,86 @@
-from flask import Flask, request, Response
-import requests
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import aiohttp
+import asyncio
+import time
+import json
 
 app = Flask(__name__)
+CORS(app)
 
-AUTH_SERVICE_URL = 'http://localhost:5000'
-USER_SERVICE_URL = 'http://localhost:5001'
-ENGAGEMENT_SERVICE_URL = 'http://localhost:5003'
+AUTH_SERVICE_URL = 'http://127.0.0.1:5000'
+USER_SERVICE_URL = 'http://127.0.0.1:5001'
+VIDEO_SERVICE_URL = 'http://127.0.0.1:5002'
+ENGAGEMENT_SERVICE_URL = 'http://127.0.0.1:5003'
+RECOMMENDATION_SERVICE_URL = 'http://127.0.0.1:5005'
 
-def get_request_data():
-    """Get the request data."""
-    if request.is_json:
-        return request.get_json()
-    return None
+async def fetch(session, url, method, headers, data, params):
+    async with session.request(method, url, headers=headers, json=data, params=params) as resp:
+        try:
+            if resp.status == 200:
+                content_type = resp.headers.get('Content-Type', '')
+                
+                if 'application/json' in content_type:
+                    response_content = await resp.json()
+                else:
+                    response_content = await resp.read()
+            else:
+                response_content = await resp.text()
 
-@app.route('/auth/<path:path>', methods=['POST', 'GET'])
-def proxy_auth(path):
-    """Proxy requests to the authentication service."""
-    headers = {key: value for key, value in request.headers}
-    data = get_request_data()
-    
-    resp = requests.request(
-        method=request.method,
-        url=f"{AUTH_SERVICE_URL}/{path}",
-        headers=headers,
-        json=data,
-        params=request.args,
-        timeout=5
-    )
-    return (resp.content, resp.status_code, dict(resp.headers))
+        except Exception as e:
+            print(f"Error decoding response: {e}")
+            response_content = None
+            
+        return response_content, resp.status, resp.headers
 
-@app.route('/user/<path:path>', methods=['POST', 'GET'])
-def proxy_user(path):
-    """Proxy requests to the user service."""
-    headers = {key: value for key, value in request.headers}
-    data = get_request_data()
-    
-    resp = requests.request(
-        method=request.method,
-        url=f"{USER_SERVICE_URL}/{path}",
-        headers=headers,
-        json=data,
-        params=request.args,
-        timeout=5
-    )
-    return (resp.content, resp.status_code, dict(resp.headers))
 
-@app.route('/engagement/<path:path>', methods=['POST', 'GET'])
-def proxy_engagement(path):
-    """Proxy requests to the user service."""
-    headers = {key: value for key, value in request.headers}
-    data = get_request_data()
-    
-    resp = requests.request(
-        method=request.method,
-        url=f"{ENGAGEMENT_SERVICE_URL}/{path}",
-        headers=headers,
-        json=data,
-        params=request.args,
-        timeout=5
-    )
-    return (resp.content, resp.status_code, dict(resp.headers))
+def flatten_headers(headers):
+    flattened = {}
+    for key, value in headers.items():
+        if key in flattened:
+            flattened[key] += ', ' + value
+        else:
+            flattened[key] = value
+    return flattened
+
+@app.route('/<service>/<path:path>', methods=['POST', 'GET'])
+async def proxy(service, path):
+    start_time = time.time()
+    services = {
+        'auth': AUTH_SERVICE_URL,
+        'user': USER_SERVICE_URL,
+        'video': VIDEO_SERVICE_URL,
+        'engagement': ENGAGEMENT_SERVICE_URL,
+        'recommendation': RECOMMENDATION_SERVICE_URL
+    }
+
+    if service not in services:
+        return jsonify({"error": "Service not found"}), 404
+
+    headers = {key: value for key, value in request.headers.items() if key.lower() != 'content-length'}
+    data = request.get_json() if request.is_json else None
+
+    print(f"Request data: {data}")
+
+    async with aiohttp.ClientSession() as session:
+        response_content, status_code, response_headers = await fetch(
+            session,
+            f"{services[service]}/{path}",
+            request.method,
+            headers,
+            data,
+            request.args
+        )
+        
+    request_duration = time.time() - start_time
+    print(f"Request duration for {service}/{path}: {request_duration:.2f} seconds")
+
+    response_headers = flatten_headers(response_headers)
+
+    if isinstance(response_content, dict):
+        return jsonify(response_content), status_code, response_headers
+    else:
+        return response_content, status_code, response_headers
 
 if __name__ == '__main__':
     app.run(port=8000, debug=True)
