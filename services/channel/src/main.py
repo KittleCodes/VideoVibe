@@ -1,4 +1,5 @@
 import requests
+from functools import wraps
 from flask import Flask, request, jsonify, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -42,12 +43,13 @@ def require_auth(func):
 def register(user_id):
     """Register a new channel."""
     data = request.get_json()
+    username = data.get('username').lower()
     
-    existing_channel = Channel.query.filter_by(name=data['username']).first()
+    existing_channel = Channel.query.filter_by(username=username).first()
     if existing_channel:
         return jsonify(message='Channel username already taken'), 400
     
-    new_channel = Channel(creator_id=user_id, name=data['name'], username=data['username'], about="Change your about in channel settings!")
+    new_channel = Channel(creator_id=user_id, name=data['name'], username=username, about="Change your about in channel settings!")
     db.session.add(new_channel)
     db.session.commit()
     return jsonify(message='Channel created successfully'), 201
@@ -58,7 +60,7 @@ def find_channel():
     id = request.args.get('id')
     channel = Channel.query.filter_by(id=id).first()
     if channel:
-        return jsonify(id=channel.id, name=channel.name, username=channel.username, about=channel.about, created_at=channel.created_at), 200
+        return jsonify(id=channel.id, user_id=channel.creator_id, name=channel.name, username=channel.username, about=channel.about, created_at=channel.created_at), 200
     else:
         return jsonify(message='Channel not found'), 404
 

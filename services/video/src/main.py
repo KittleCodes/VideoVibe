@@ -21,6 +21,7 @@ CORS(app, resources={r"/*": {"origins": "http://127.0.0.1"}})
 
 AUTH_SERVICE_URL = 'http://127.0.0.1:5000'
 RECOMMENDATION_SERVICE_URL = 'http://127.0.0.1:5005'
+CHANNEL_SERVICE_URL = 'http://127.0.0.1:5006'
 SERVICE_TOKEN = 'my_secure_service_token' # Change this!
 ID_LENGTH = 12
 ALLOWED_EXTENSIONS = {'mp4', 'mov', 'avi'}
@@ -55,6 +56,23 @@ def require_auth(func):
 @require_auth
 def create_video(user_id):
     """Create a new video."""
+    channel_id = request.form.get('channel_id')
+
+    # Verify that the user owns the channel
+    try:
+        channel_response = requests.get(f"{CHANNEL_SERVICE_URL}/find?id={channel_id}", timeout=10).json()
+        print(channel_response)
+        if 'message' in channel_response:  # Check if the channel was found
+            return jsonify({'error': 'Channel not found'}), 404
+        
+        # Assuming the channel object includes user_id or owner_id
+        if channel_response.get('user_id') != user_id:  # Check if the user_id matches
+            return jsonify({'error': 'User does not own the specified channel'}), 403
+            
+    except requests.exceptions.RequestException as e:
+        print(f"An error occurred while checking channel ownership: {e}")
+        return jsonify({'error': 'Error checking channel ownership'}), 500
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
     file = request.files['file']
@@ -85,7 +103,8 @@ def create_video(user_id):
             print(f"An error occurred while sending keywords to the recommendation service: {e}")
             return jsonify({'error': 'An error occurred while sending keywords to the recommendation service'}), 500
 
-        new_video = Video(title=filename, description=filename, token=token, author_id=user_id)
+        # Use channel_id as the author_id
+        new_video = Video(title=filename, description=filename, token=token, author_id=channel_id)
         db.session.add(new_video)
         db.session.commit()
 
@@ -98,7 +117,14 @@ def get_video(token):
     """Get a video by token."""
     video = Video.query.get(token)
     if video:
-        return jsonify(token=video.token, title=video.title, description=video.description, author_id=video.author_id), 200
+        channel_response = requests.get(f"{CHANNEL_SERVICE_URL}/find?id={video.author_id}", timeout=10).json()
+        
+        if channel_response:
+            name = channel_response.get('name')
+            username = channel_response.get('username')
+            return jsonify(token=video.token, title=video.title, description=video.description, author_id=video.author_id, username=username, name=name), 200
+        else:
+            return jsonify({'error': 'Channel not found'}), 404
     else:
         return jsonify(message='Video not found'), 404
 
@@ -107,11 +133,22 @@ def get_video(token):
 def update_video(token, user_id):
     """Update a video by token."""
     data = request.get_json()
+    channel_id = data.get('channel_id')
     video = Video.query.get(token)
 
     if video:
-        if video.user_id != user_id:
-            return jsonify(message='Unauthorized'), 403
+        # Check if the channel belongs to the user
+        try:
+            channel_response = requests.get(f"{AUTH_SERVICE_URL}/find?id={channel_id}", timeout=10).json()
+            if 'message' in channel_response:  # Check if the channel was found
+                return jsonify({'error': 'Channel not found'}), 404
+
+            if channel_response.get('user_id') != user_id:  # Check if the user_id matches
+                return jsonify(message='Unauthorized'), 403
+
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred while checking channel ownership: {e}")
+            return jsonify({'error': 'Error checking channel ownership'}), 500
 
         video.title = data.get('title', video.title)
         video.description = data.get('description', video.description)
@@ -124,11 +161,22 @@ def update_video(token, user_id):
 @require_auth
 def delete_video(token, user_id):
     """Delete a video by token."""
+    channel_id = request.args.get('channel_id')
     video = Video.query.get(token)
 
     if video:
-        if video.user_id != user_id:
-            return jsonify(message='Unauthorized'), 403
+        # Check if the channel belongs to the user
+        try:
+            channel_response = requests.get(f"{AUTH_SERVICE_URL}/find?id={channel_id}", timeout=10).json()
+            if 'message' in channel_response:  # Check if the channel was found
+                return jsonify({'error': 'Channel not found'}), 404
+
+            if channel_response.get('user_id') != user_id:  # Check if the user_id matches
+                return jsonify(message='Unauthorized'), 403
+
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred while checking channel ownership: {e}")
+            return jsonify({'error': 'Error checking channel ownership'}), 500
 
         db.session.delete(video)
         db.session.commit()
