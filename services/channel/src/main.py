@@ -1,6 +1,6 @@
 import requests
 from functools import wraps
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_cors import CORS
@@ -37,6 +37,14 @@ def require_auth(func):
         return func(*args, **kwargs)
 
     return check_token
+
+@app.route('/banner/<path:path>')
+def send_banner(path):
+    return send_from_directory('banner', path)
+
+@app.route('/pfp/<path:path>')
+def send_pfp(path):
+    return send_from_directory('pfp', path)
 
 @app.route('/register', methods=['POST'])
 @require_auth

@@ -128,6 +128,36 @@ def get_video(token):
     else:
         return jsonify(message='Video not found'), 404
 
+@app.route('/videos/channel/<author_id>', methods=['GET'])
+def get_channel_videos(author_id):
+    """Get videos by author_id with cursor pagination."""
+    cursor = request.args.get('cursor', None)
+    limit = request.args.get('limit', default=10, type=int)
+
+    # Query to get videos by author_id
+    if cursor:
+        videos = Video.query.filter(Video.author_id == author_id, Video.date_created > cursor).order_by(Video.date_created).limit(limit).all()
+    else:
+        # If no cursor is provided, return the first set of videos
+        videos = Video.query.filter(Video.author_id == author_id).order_by(Video.date_created).limit(limit).all()
+
+    if videos:
+        video_list = [{
+            'token': video.token,
+            'title': video.title,
+            'description': video.description,
+            'author_id': video.author_id,
+            'id': video.date_created
+        } for video in videos]
+
+        # Determine the next cursor if more videos are available
+        next_cursor = videos[-1].id if len(videos) == limit else None
+        
+        return jsonify(videos=video_list, next_cursor=next_cursor), 200
+    else:
+        return jsonify(message='No videos found'), 404
+
+
 @app.route('/videos/<token>', methods=['PUT'])
 @require_auth
 def update_video(token, user_id):
