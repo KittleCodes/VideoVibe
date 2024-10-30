@@ -2,6 +2,7 @@ import os
 import secrets
 from functools import wraps
 import requests
+import datetime
 from flask import Flask, request, jsonify, send_from_directory, Response
 from flask_cors import CORS
 from models import db, Video
@@ -147,7 +148,7 @@ def get_channel_videos(author_id):
             'title': video.title,
             'description': video.description,
             'author_id': video.author_id,
-            'id': video.date_created
+            'date_created': video.date_created
         } for video in videos]
 
         # Determine the next cursor if more videos are available
@@ -213,6 +214,22 @@ def delete_video(token, user_id):
         return jsonify(message='Video deleted'), 200
     else:
         return jsonify(message='Video not found'), 404
+
+@app.route('/videos/new/<int:amount>', methods=['GET'])
+def get_new_videos(amount):
+    """Get a certain amount of today's newest videos."""
+    amount = amount if amount <= 20 else 20
+    videos = Video.query.filter(Video.date_created >= (datetime.datetime.utcnow() - datetime.timedelta(days=30))).limit(amount)
+    
+    video_list = [{
+        'token': video.token,
+        'title': video.title,
+        'description': video.description,
+        'author_id': video.author_id,
+        'date_created': video.date_created
+    } for video in videos]
+        
+    return jsonify(videos=video_list), 200
 
 @app.route('/uploads/<filename>')
 def serve_upload(filename):
