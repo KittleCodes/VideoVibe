@@ -219,7 +219,7 @@ def delete_video(token, user_id):
 def get_new_videos(amount):
     """Get a certain amount of today's newest videos."""
     amount = amount if amount <= 20 else 20
-    videos = Video.query.filter(Video.date_created >= (datetime.datetime.utcnow() - datetime.timedelta(days=30))).limit(amount)
+    videos = Video.query.filter(Video.date_created >= (datetime.datetime.utcnow() - datetime.timedelta(days=1))).limit(amount)
     
     video_list = [{
         'token': video.token,
