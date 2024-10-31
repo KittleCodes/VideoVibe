@@ -72,6 +72,73 @@ def find_channel():
     else:
         return jsonify(message='Channel not found'), 404
 
+@app.route('/edit/about', methods=['POST'])
+@require_auth
+def edit_about(user_id):
+    """Edit the about field of a channel."""
+    data = request.get_json()
+    channel_id = data.get('channel_id')
+    about = data.get('about')
+
+    channel = Channel.query.filter_by(id = channel_id, creator_id = user_id).first()
+    
+    if channel:
+        if len(about) <= 500:
+            channel.about = about
+            db.session.commit()
+            
+            return jsonify(message='About updated succesfully'), 200
+        else:
+            return jsonify(message='About is too many characters long'), 404
+    else:
+        return jsonify(message='Channel not found or you do not have access to that channel'), 404
+
+@app.route('/edit/name', methods=['POST'])
+@require_auth
+def edit_name(user_id):
+    """Edit the name field of a channel."""
+    data = request.get_json()
+    channel_id = data.get('channel_id')
+    name = data.get('name')
+
+    channel = Channel.query.filter_by(id = channel_id, creator_id = user_id).first()
+    
+    if channel:
+        if len(name) <= 150:
+            channel.name = name
+            db.session.commit()
+            
+            return jsonify(message='Name updated succesfully'), 200
+        else:
+            return jsonify(message='Name is too many characters long'), 404
+    else:
+        return jsonify(message='Channel not found or you do not have access to that channel'), 404
+
+@app.route('/edit/username', methods=['POST'])
+@require_auth
+def edit_username(user_id):
+    """Edit the username field of a channel."""
+    data = request.get_json()
+    channel_id = data.get('channel_id')
+    username = data.get('username').lower()
+
+    existing_channel = Channel.query.filter_by(username=username).first()
+    if existing_channel:
+        return jsonify(message='Channel username already taken'), 400
+
+    channel = Channel.query.filter_by(id = channel_id, creator_id = user_id).first()
+    
+    if channel:
+        if len(username) <= 150:
+            channel.username = username
+            db.session.commit()
+            
+            return jsonify(message='Username updated succesfully'), 200
+        else:
+            return jsonify(message='Username is too many characters long'), 404
+    else:
+        return jsonify(message='Channel not found or you do not have access to that channel'), 404
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
