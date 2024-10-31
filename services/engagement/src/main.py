@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import datetime
 from functools import wraps
 from flask import Flask, request, jsonify, Response
 from models import db, Like, Dislike, Comment, View, Subscription
@@ -14,6 +15,7 @@ db.init_app(app)
 
 USER_SERVICE_URL = 'http://127.0.0.1:5001/'
 AUTH_SERVICE_URL = 'http://127.0.0.1:5000/'
+VIDEO_SERVICE_URL = 'http://127.0.0.1:5002/'
 
 def require_auth(func):
     """Checks if the request has a valid access token."""
@@ -178,6 +180,28 @@ def unsubscribe_user(user_id):
 
     subscriptions_count = Subscription.query.filter_by(subscriber_id=user_id).count()
     return jsonify({"message": "Subscription removed", "subscriptions": subscriptions_count})
+
+@app.route('/trending/<int:amount>')
+def trending(amount):
+    """Get the 20 most trending videos."""
+    amount = amount if amount >= 20 else 20
+    
+    videos = (db.session.query(View.video_id, func.count(View.id).label("view_count"))
+        .filter(View.timestamp >= (datetime.datetime.utcnow() - datetime.timedelta(days=1)))
+        .group_by(View.video_id)
+        .order_by(func.count(View.id).desc())
+        .limit(amount)
+        .all()
+    )
+    
+    new_videos = {}
+    
+    for video in videos:
+        video_request = requests.get(f'{VIDEO_SERVICE_URL}/videos/{video.video_id}')
+        if video_request.status_code == 200:
+            videos.append(video_request.json)
+    
+    return jsonify(videos=new_videos), 200
 
 if __name__ == '__main__':
     with app.app_context():
