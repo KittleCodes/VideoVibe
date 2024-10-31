@@ -1,0 +1,13 @@
+aiohttp==3.9.5
+Flask==3.0.3
+Flask_Bcrypt==1.0.1
+Flask_Cors==4.0.1
+Flask_JWT_Extended==4.6.0
+flask_sqlalchemy==3.1.1
+moviepy==1.0.3
+nltk==3.8.1
+PyJWT==2.9.0
+Requests==2.32.3
+SpeechRecognition==3.10.4
+SQLAlchemy==2.0.31
+Werkzeug==3.0.6
