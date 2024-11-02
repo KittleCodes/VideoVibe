@@ -10,9 +10,8 @@ VideoVibe is a video streaming platform that allows users to upload, share, and 
 - User and channel system
 
 ## Todo
-- Add channel customization
-- Add channel creation system
 - Redesign video upload page
+- Add studio to control channels and their content
 
 ## Technologies Used
 
