@@ -61,6 +61,19 @@
                     <h3 style="margin: 0; padding: 0;">Comments</h3>
                     <p style="font-size: 22px; margin: 0; margin-left: 5px; color: #AAAAAA;" id="amountComments"></p>
                 </div>
+                {% if logged_in != None: %}
+                    <div class="mb-3 d-flex align-items-start">
+                        <svg data-jdenticon-value="{{logged_in["username"]}}" width="35" height="35" style="margin-right: 10px;background-color: black;"></svg>
+                        <textarea class="form-control me-2" id="commentContent" rows="3" placeholder="Write comment here..."></textarea>
+                    </div>
+                    <div class="d-flex w-100 justify-content-end mt-2">
+                        <button onclick="postComment()" class="btn btn-primary">Post Comment</button>
+                    </div>
+                {% else %}
+                    <div class="mb-3 d-flex align-items-start">
+                        <a class="btn btn-primary" role="button" href="/login" style="background: var(--bs-blue);width: 180.0375px;">Login To Comment</a>
+                    </div>
+                {% endif %}
                 <div class="row" id="commentTemplate" style="display:none;">
                     <div style="display: flex; align-items: center;">
                         <svg id="authorIcon" width="35" height="35"></svg>
@@ -107,6 +120,29 @@
           }
         };
         xhr.send();
+
+        function postComment() {
+            var comment_content = document.getElementById("commentContent");
+
+            let xhr = new XMLHttpRequest();
+            let url = "http://127.0.0.1:8000/engagement/comment";
+
+            xhr.open("POST", url, true);
+
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.setRequestHeader("Authorization", "Bearer " + document.cookie.match(new RegExp('(^| )access_token=([^;]+)'))[2]);
+
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                    let json = JSON.parse(xhr.responseText);
+                    console.log(json);
+                }
+            };
+
+            var data = JSON.stringify({ "video_id": video_id, "comment": comment_content.value });
+
+            xhr.send(data);
+        }
     </script>
     <script>
         let lastTimestamp = null;
