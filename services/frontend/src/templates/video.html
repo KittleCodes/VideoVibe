@@ -12,6 +12,17 @@
     <script src="https://cdn.jsdelivr.net/npm/jdenticon@3.3.0/dist/jdenticon.min.js" async
         integrity="sha384-LfouGM03m83ArVtne1JPk926e3SGD0Tz8XHtW2OKGsgeBU/UfR0Fa8eX+UlwSSAZ" crossorigin="anonymous">
     </script>
+    <style>
+        .timestamp {
+            background-color: aqua;
+            border-radius: 10px;
+            padding-left: 5px;
+            padding-right: 5px;
+            color: blue !important;
+            opacity: 0.5;
+            text-decoration: underline;
+        }
+    </style>
 </head>
 
 <body style="font-family: Almarai, sans-serif;">
@@ -36,7 +47,7 @@
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item"><a class="nav-link active" href="/">Home</a></li>
                     <li class="nav-item"><a class="nav-link" href="/new">New</a></li>
-                    <li class="nav-item"><a class="nav-link" href="#">Trending</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/trending">Trending</a></li>
                 </ul>
                 {% if logged_in != None: %}
                     <svg data-jdenticon-value="{{logged_in["username"]}}" width="35" height="35" style="margin-left: 10px;background-color: black;"></svg>
@@ -86,13 +97,28 @@
                 <p id="load-more" onclick="loadComments()" style="display:none;">Load More Comments</p>
             </div>
         </div>
-        <div id="relatedVideos" class="col">
-            <h3 style="width: 90%;margin: 0 auto;float: none;margin-top: 20px;">Related Videos</h3>
-            <div id="relatedVideoTemplate" class="card" style="width: 90%;margin: 0 auto;float: none;margin-top: 20px;display: none;">
-                <div class="card-body" style="border-radius: 6px;margin auto;">
-                    <a href=""><img alt="" style="width: 100%;height: auto;border-radius: 10px;margin-bottom: 5px;" src="" onerror="this.onerror=null;this.src='/static/img/1280x720_Placeholder.png';"></a>
-                    <a href=""><h4 class="card-title" style="margin-top: 5px;">Video Title</h4></a>
-                    <a href=""><h6 class="text-muted card-subtitle mb-2">Channel Name</h6></a>
+        <div class="col">
+            <div class="row">
+                <h3 style="width: 90%;margin: 0 auto;float: none;margin-top: 20px;">Timeline Comments</h3>
+                <div id="timelineCommentContainer" class="card" style="width: 90%;min-height:400px;margin: 0 auto;float: none;margin-top: 20px;background-color: #121212;">
+                    <div class="row" id="timelineCommentTemplate" style="display:none;">
+                        <div style="display: flex; align-items: center;">
+                            <svg id="authorIcon" width="35" height="35"></svg>
+                            <p style="font-size: 18px; margin: 0; margin-left: 10px;" id="author">Commenter Name</p>
+                            <p class="timestamp" style="font-size: 14px; margin: 0; margin-left: 10px; color: #AAAAAA; align-self: center;" id="timestamp">just now</p>
+                        </div>
+                        <p id="content" style="margin-left: 45px;">This is an example comment text.</p>
+                    </div>
+                </div>
+            </div>
+            <div id="relatedVideos" class="row">
+                <h3 style="width: 90%;margin: 0 auto;float: none;margin-top: 20px;">Related Videos</h3>
+                <div id="relatedVideoTemplate" class="card" style="width: 90%;margin: 0 auto;float: none;margin-top: 20px;display: none;">
+                    <div class="card-body" style="border-radius: 6px;margin auto;">
+                        <a href=""><img alt="" style="width: 100%;height: auto;border-radius: 10px;margin-bottom: 5px;" src="" onerror="this.onerror=null;this.src='/static/img/1280x720_Placeholder.png';"></a>
+                        <a href=""><h4 class="card-title" style="margin-top: 5px;">Video Title</h4></a>
+                        <a href=""><h6 class="text-muted card-subtitle mb-2">Channel Name</h6></a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -139,7 +165,7 @@
                 }
             };
 
-            var data = JSON.stringify({ "video_id": video_id, "comment": comment_content.value });
+            var data = JSON.stringify({ "video_id": video_id, "comment": comment_content.value, "video_timestamp": video.currentTime });
 
             xhr.send(data);
         }
@@ -230,6 +256,82 @@
         }
 
         window.onload = loadComments;
+    </script>
+    <script>
+        let lastRequestTime = 0;
+        let comments = []
+
+        function convertSecondsToHMS(seconds) {
+            const totalSeconds = Math.floor(seconds);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const remainingSeconds = totalSeconds % 60;
+
+            if (hours > 0) {
+                return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+            } else {
+                return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+            }
+        }
+
+        function loadTimelineComments() {
+            if (comments.length == 0) {
+                console.log(1);
+                let xhr = new XMLHttpRequest();
+                let url = `http://127.0.0.1:8000/engagement/comments/timeline?video_id=${video_id}&video_timestamp=${video.currentTime}`;
+
+                xhr.open('GET', url, true);
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        let response = JSON.parse(xhr.responseText);
+                        console.log(response);
+                        comments = comments.concat(response.comments);
+                    }
+                };
+
+                xhr.send();
+            }
+            else if (comments[comments.length - 1].video_timestamp - 5 <= video.currentTime & lastRequestTime != Math.round(video.currentTime)) {
+                lastRequestTime = Math.round(video.currentTime);
+                let xhr = new XMLHttpRequest();
+                let url = `http://127.0.0.1:8000/engagement/comments/timeline?video_id=${video_id}&video_timestamp=${video.currentTime+5}`;
+
+                xhr.open('GET', url, true);
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        let response = JSON.parse(xhr.responseText);
+                        console.log(response);
+                        comments = comments.concat(response.comments);
+                    }
+                };
+
+                xhr.send();
+            }
+
+            const commentsSection = document.getElementById('timelineCommentContainer');
+            const commentTemplate = document.getElementById("timelineCommentTemplate");
+
+            comments.forEach(function (comment) {
+                if (Math.round(comment.video_timestamp) == Math.round(video.currentTime)) {
+                    if (commentsSection.querySelector(`#comment${comment.id}`) != null) { return; }
+                    const commentElement = commentTemplate.cloneNode(true);
+                    commentElement.id = "comment"+comment.id;
+                    commentElement.querySelector("#content").innerText = comment.comment_text;
+                    commentElement.querySelector("#timestamp").innerText = convertSecondsToHMS(comment.video_timestamp);
+
+                    commentElement.querySelector("#timestamp").onclick = function() { video.currentTime = comment.video_timestamp; }
+
+                    commentElement.querySelector("#author").innerText = comment.username;
+                    jdenticon.update(commentElement.querySelector("#authorIcon"), comment.username);
+
+                    commentElement.style = "margin-top: 10px";
+
+                    commentsSection.appendChild(commentElement);
+                }
+            });
+        }
+
+        setInterval(loadTimelineComments, 1000);
     </script>
     <script src="/static/js/recommendVideos.js"></script>
     <script>getRecommendations(video_id);</script>

@@ -23,6 +23,7 @@ class Comment(db.Model):
     video_id = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.String(100), nullable=False)
     comment_text = db.Column(db.Text, nullable=False)
+    video_timestamp = db.Column(db.Float, nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self):
@@ -31,6 +32,7 @@ class Comment(db.Model):
             "video_id": self.video_id,
             "user_id": self.user_id,
             "comment_text": self.comment_text,
+            "video_timestamp": self.video_timestamp,
             "timestamp": self.timestamp.isoformat()
         }
 

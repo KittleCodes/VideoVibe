@@ -86,9 +86,10 @@ def dislike_video(user_id):
 def comment_video(user_id):
     """Comment on a video."""
     video_id = request.json.get('video_id')
+    video_timestamp = request.json.get('video_timestamp')
     comment_text = request.json.get('comment')
 
-    comment = Comment(video_id=video_id, user_id=user_id, comment_text=comment_text)
+    comment = Comment(video_id=video_id, user_id=user_id, comment_text=comment_text, video_timestamp=video_timestamp)
     db.session.add(comment)
     db.session.commit()
 
@@ -127,6 +128,32 @@ def get_comments():
         "commentCount": count,
         "last_timestamp": comments[-1].timestamp.isoformat() if comments else None,
         "has_more": len(comments) == per_page
+    })
+
+@app.route('/comments/timeline', methods=['GET'])
+def get_timeline_comments():
+    """Get comments based on their video_timestamp."""
+    video_id = request.args.get('video_id')
+    video_timestamp = request.args.get('video_timestamp')
+    
+    query = Comment.query.filter_by(video_id=video_id).order_by(Comment.video_timestamp).filter((Comment.video_timestamp > float(video_timestamp)) & (Comment.video_timestamp < float(video_timestamp) + 10))
+    
+    comments = query.limit(20).all()
+    
+    user_ids = [comment.user_id for comment in comments]
+    response = requests.get(f"{USER_SERVICE_URL}/findusername", timeout=5, params={"id": user_ids})
+
+    usernames = {user['id']: user['username'] for user in response.json()} if response.status_code == 200 else {}
+
+    newComments = []
+
+    for comment in comments:
+        comment_dict = comment.to_dict()
+        comment_dict['username'] = usernames.get(int(comment.user_id), "Unknown")
+        newComments.append(comment_dict)
+
+    return jsonify({
+        "comments": newComments
     })
 
 @app.route('/view', methods=['POST'])
