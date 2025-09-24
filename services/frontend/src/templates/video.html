@@ -15,7 +15,7 @@
     <style>
         .timestamp {
             background-color: aqua;
-            border-radius: 10px;
+            border-radius: 3px;
             padding-left: 5px;
             padding-right: 5px;
             color: blue !important;
@@ -60,7 +60,7 @@
     <div class="row" style="margin: 0;">
         <div class="col-xl-8">
             <video id="videoPlayer" data-dashjs-player style="aspect-ratio: 16 / 9;height: auto;width: 100%; margin: 20px; margin-bottom: 5px; margin-right: 0px;border-radius: 6px;"loop="true" autoplay="true" controls crossorigin="anonymous">
-                <track label="English" kind="subtitles" srclang="en" src="http://127.0.0.1:8000/video/dash/{id}/{id}.vtt" default />
+                <track label="English" kind="subtitles" srclang="en" src="http://127.0.0.1:8000/video/dash/{{id}}/{{id}}.vtt" default />
             </video>
             <div class="container" style="background-color: #121212; margin: 20px; margin-bottom: 5px; margin-right: 0px; margin-top: 0; border-radius: 10px;padding:20px;min-width:100%;">
                 <p style="font-size: 32px;" id="videoTitle">Video title</p>

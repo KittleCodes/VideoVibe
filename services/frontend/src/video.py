@@ -13,4 +13,4 @@ def video(id):
     if token:
         decoded = jwt.decode(token, options={"verify_signature": False})
         
-    return render_template('video.html', logged_in=decoded)
+    return render_template('video.html', logged_in=decoded, id=id)
